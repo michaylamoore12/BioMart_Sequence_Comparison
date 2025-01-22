@@ -1,0 +1,145 @@
+---
+title: "BioMart_Sequence_Comparison"
+author: "Michayla Moore"
+date: "2024-12-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+ #   install.packages("BiocManager")
+
+#install.packages("BiocManager")
+#BiocManager::install(version = "3.20")
+
+
+#BiocManager::install("biomaRt")
+
+#if (!requireNamespace("Biostrings", quietly = TRUE)) {
+ # install.packages("BiocManager")
+  #BiocManager::install("Biostrings")
+#}
+
+#BiocManager::install("pwalign")
+
+library(Biostrings)
+library(biomaRt)
+library(pwalign)
+```
+
+```{r}
+# Try a mirror site for Ensembl
+ensembl <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", mirror = "us")  # Change "us" to "asia" or "useast" if needed
+
+genes <- c("ISLR", "ISLR2")
+
+# Retrieve the amino acid sequences 
+sequences <- getBM(
+  attributes = c("hgnc_symbol", "peptide"),
+  filters = "hgnc_symbol",
+  values = genes,
+  mart = ensembl
+)
+
+# Check the retrieved sequences
+print(sequences)
+sequences <- sequences[!duplicated(sequences$hgnc_symbol), ]
+```
+
+```{r}
+# Version control
+# Retrieve available datasets and check if it includes the version information
+datasets <- listDatasets(ensembl)
+
+# Check if the human genome dataset is available (usually 'hsapiens_gene_ensembl')
+human_dataset <- datasets[grep("hsapiens", datasets$dataset),]
+
+# Output the dataset name for confirmation
+print(human_dataset)
+```
+
+
+```{r}
+# Extract sequences for BMP9 and BMP10
+bmp9_seq <- AAString(sequences[sequences$hgnc_symbol == "ISLR", "peptide"])
+bmp10_seq <- AAString(sequences[sequences$hgnc_symbol == "ISLR2", "peptide"])
+
+# Perform pairwise alignment
+alignment <- pairwiseAlignment(bmp9_seq, bmp10_seq, 
+                               substitutionMatrix = "BLOSUM62", 
+                               gapOpening = 10, 
+                               gapExtension = 0.5)
+
+# Display alignment summary
+print(alignment)
+
+# Calculate sequence identity
+identity <- pid(alignment, type = "PID3")  # Percentage Identity based on alignment
+cat("Sequence Identity between ISLR and ISLR2:", identity, "%\n")
+```
+
+
+# Mouse vs Human
+```{r}
+# Connect to Ensembl and specify the datasets for human and mouse
+ensembl <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", mirror = "us")
+ensembl_mouse <- useEnsembl("ensembl", dataset = "mmusculus_gene_ensembl", mirror = "us")
+
+# Retrieve GDF2 amino acid sequences for human and mouse
+genes <- c("Cxcl5")
+
+# Retrieve the amino acid sequences for GDF2 in both human and mouse
+human_sequences <- getBM(
+  attributes = c("hgnc_symbol", "peptide"),
+  filters = "hgnc_symbol",
+  values = genes,
+  mart = ensembl
+)
+
+mouse_sequences <- getBM(
+  attributes = c("mgi_symbol", "peptide"),
+  filters = "mgi_symbol",
+  values = genes,
+  mart = ensembl_mouse
+)
+
+# Check if sequences were retrieved correctly
+print("Human CXCL6 sequence:")
+print(human_sequences)
+print("Mouse CXCL6 sequence:")
+print(mouse_sequences)
+
+# Ensure both human and mouse GDF2 sequences are available
+if (length(human_sequences$peptide) > 0 & length(mouse_sequences$peptide) > 0) {
+  
+  # Retrieve the amino acid sequences
+  human_gdf2_seq <- human_sequences$peptide[1]
+  mouse_gdf2_seq <- mouse_sequences$peptide[1]
+  
+  # Perform pairwise alignment (using Biostrings' pairwiseAlignment function)
+  alignment <- pairwiseAlignment(
+    human_gdf2_seq, mouse_gdf2_seq,
+    substitutionMatrix = "BLOSUM62",
+    gapOpening = 10,
+    gapExtension = 0.5
+  )
+  
+  # Print the alignment result
+  print("Pairwise alignment between human and mouse CXCL6:")
+  print(alignment)
+  
+  # Calculate the sequence identity
+  identity <- pid(alignment, type = "PID3")  # Percentage Identity based on alignment
+  cat("Sequence Identity between Human and Mouse CXCL6:", identity, "%\n")
+  
+} else {
+  cat("Could not retrieve the sequences for CXCL6 from Ensembl.\n")
+}
+
+```
+
+
